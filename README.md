@@ -64,16 +64,7 @@ Note the full path to `MavenMCP.py` — you'll need it in the config step below.
 pwd  # from inside the MailMavenMCP folder
 ```
 
-## 2. Grant automation permissions
-
-The server calls MailMaven through AppleScript, so macOS needs to let the process that launches it (Claude Desktop, Terminal, or Claude Code) control MailMaven.
-
-1. Open **MailMaven** and leave it running — the server can't reach it otherwise.
-2. Open **System Settings → Privacy & Security → Automation**.
-3. The first time Claude tries to use a MailMaven tool, macOS will prompt you to allow Claude (or Terminal) to control "MailMaven." Click **Allow**.
-4. If you don't see a prompt, or accidentally denied it, find the app in the Automation list and manually check the **MailMaven** box next to it.
-
-## 3. Connect it to Claude
+## 2. Connect it to Claude
 
 ### Claude Desktop
 
@@ -106,6 +97,15 @@ claude mcp add mailmaven -- /absolute/path/to/MailMavenMCP/.venv/bin/python3 /ab
 
 Run `claude mcp list` afterward to confirm it shows as connected.
 
+## 3. Grant automation permissions
+
+The server calls MailMaven through AppleScript, so macOS needs to let the process that launches it (Claude Desktop, Terminal, or Claude Code) control MailMaven.
+
+1. Open **MailMaven** and leave it running — the server can't reach it otherwise.
+2. Open **System Settings → Privacy & Security → Automation**.
+3. The first time Claude tries to use a MailMaven tool, macOS will prompt you to allow Claude (or Terminal) to control "MailMaven." Click **Allow**.
+4. If you don't see a prompt, or accidentally denied it, find the app in the Automation list and manually check the **MailMaven** box next to it.
+
 ## 4. Verify it worked
 
 Make sure MailMaven is open, then ask Claude something simple like:
@@ -119,7 +119,7 @@ If it responds with your configured accounts, the connection is working. If a Ma
 ## Troubleshooting
 
 **"AppleScript error: ... not allowed to send Apple events"** (or errno `-1743`)
-macOS is blocking the automation permission. Revisit step 2 above — check System Settings → Privacy & Security → Automation, and make sure the app that's launching the server (Claude Desktop or Terminal) has permission to control MailMaven.
+macOS is blocking the automation permission. Revisit step 3 above — check System Settings → Privacy & Security → Automation, and make sure the app that's launching the server (Claude Desktop or Terminal) has permission to control MailMaven.
 
 **Tools time out or return nothing**
 MailMaven must be running for AppleScript to reach it. Open the app and try again.
