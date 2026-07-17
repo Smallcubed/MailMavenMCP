@@ -39,6 +39,29 @@ def _run_applescript(script: str, timeout: int = 60) -> str:
     return proc.stdout.strip()
 
 
+def _from_account_clause(value: str) -> tuple[str, str]:
+    """Build the setup statement and ` from ...` clause for a from_account value.
+
+    MailMaven's `from` parameter accepts text, an account object, or an
+    address object. Plain text is parsed by MailMaven as a raw email
+    address / RFC2822 string, so passing an account *name* (e.g. "SC")
+    as text fails to resolve (no "@", not a valid address) and MailMaven
+    reports "No Account found for from address (null)".
+
+    Account names are resolved via direct by-name element access
+    (``account "SC"``), which needs no separate setup statement — it's a
+    plain object specifier, not a whose-clause. Anything containing "@"
+    is treated as an address string and passed straight through as text.
+
+    Returns:
+        (setup_line, from_clause) — setup_line is always "" here, kept
+        for a consistent call signature at both call sites.
+    """
+    if "@" in value:
+        return "", f' from {_to_applescript(value)}'
+    return "", f' from account {_to_applescript(value)}'
+
+
 def _tell(body: str) -> str:
     """Wrap body in a tell block targeting MailMaven.
 
@@ -1037,6 +1060,7 @@ def compose_message(
     importance: str | None = None,
     notes: str | None = None,
     show_window: bool = True,
+    send: bool = False,
 ) -> dict:
     """Compose a new email message.
 
@@ -1056,11 +1080,24 @@ def compose_message(
         notes: Internal notes (optional, not sent in message).
         show_window: If True (default), shows the composer in MailMaven.
             Once shown, the message cannot be modified or sent via script.
+            Ignored if ``send`` is True, since a message cannot be sent via
+            AppleScript once its composer window has been shown.
+        send: If True, sends the message immediately via AppleScript instead
+            of showing the composer. Default is False. Requires
+            ``from_account`` to be set — MailMaven cannot send a message
+            without an explicit from address.
 
     Returns:
-        Dict with composerId and confirmation.
+        Dict with composerId, whether the message was sent, and a
+        confirmation message.
     """
-    from_param = f' from {_to_applescript(from_account)}' if from_account else ""
+    if send and not from_account:
+        raise ValueError(
+            "from_account is required when send=True — MailMaven cannot "
+            "send a message without an explicit from address."
+        )
+
+    from_setup, from_param = _from_account_clause(from_account) if from_account else ("", "")
 
     props: dict[str, Any] = {"subject": subject, "content": body}
     if keywords:
@@ -1093,26 +1130,41 @@ def compose_message(
     recipients_block = "\n        ".join(recipient_lines)
 
     # ── with transaction block for object creation ──────────────────────
+    # Sending and showing are mutually exclusive: once a composer window is
+    # shown, MailMaven no longer allows it to be sent via AppleScript. If
+    # `send` is set, it takes priority and `show_window` is ignored.
+    if send:
+        action_line = '\n        set _sent to send _comp'
+        result_expr = '_id & "|" & (_sent as string)'
+    else:
+        action_line = '\n        show composer _comp' if show_window else ''
+        result_expr = '_id'
+
     body_script = f'''
-    with transaction
+    with transaction{from_setup}
         set _comp to compose new message{from_param} with properties {props_record}
         {recipients_block}
+        set _id to identifier of _comp{action_line}
     end transaction
     '''
-    body_script += '\n    set _id to identifier of _comp'
-    if show_window:
-        body_script += '\n    show composer _comp'
-    body_script += '\n    return _id'
+    body_script += f'\n    return {result_expr}'
 
     script = _tell(body_script)
-    composer_id = _run_applescript(script)
+    raw = _run_applescript(script)
+
+    if send:
+        composer_id, _, sent_flag = raw.partition("|")
+        sent = sent_flag.strip().lower() == "true"
+        status = "sent" if sent else "created but send reported failure"
+    else:
+        composer_id = raw
+        sent = False
+        status = "shown" if show_window else "created (use send_message)"
 
     return {
         "composerId": composer_id,
-        "message": (
-            f"Composed message to {to}. "
-            f"Composer {'shown' if show_window else 'created (use send_message)'}."
-        ),
+        "sent": sent,
+        "message": f"Composed message to {to}. Composer {status}.",
     }
 
 
@@ -1124,6 +1176,7 @@ def forward_message(
     from_account: str | None = None,
     as_attachment: bool = False,
     show_window: bool = True,
+    send: bool = False,
 ) -> dict:
     """Forward an existing message.
 
@@ -1133,43 +1186,74 @@ def forward_message(
         body: Additional body text (optional).
         from_account: Account to send from (optional).
         as_attachment: Forward as attachment instead of inline (default False).
-        show_window: Show composer in MailMaven (default True).
+        show_window: Show composer in MailMaven (default True). Ignored if
+            ``send`` is True, since a message cannot be sent via AppleScript
+            once its composer window has been shown.
+        send: If True, sends the forwarded message immediately via
+            AppleScript instead of showing the composer. Default is False.
+            Requires ``from_account`` to be set — MailMaven cannot send a
+            message without an explicit from address.
 
     Returns:
-        Dict with composerId and confirmation.
+        Dict with composerId, whether the message was sent, and a
+        confirmation message.
     """
+    if send and not from_account:
+        raise ValueError(
+            "from_account is required when send=True — MailMaven cannot "
+            "send a message without an explicit from address."
+        )
+
     to_list = ", ".join(_to_applescript(t) for t in to)
     to_param = f' to {{{to_list}}}'
-    from_param = f' from {_to_applescript(from_account)}' if from_account else ""
+    from_setup, from_param = _from_account_clause(from_account) if from_account else ("", "")
     attach_param = " as attachment true" if as_attachment else ""
 
     # Lookup and composer creation both need to happen inside the same
     # transaction: the query used for lookup is transient and invalid once
     # its transaction ends, and the resolved message reference then feeds
-    # directly into "forward".
+    # directly into "forward". The composer reference itself is also only
+    # reliably valid while the transaction is open, so any further work on
+    # _comp (setting content, fetching its id, sending or showing the
+    # window) happens inside the block too.
+    content_line = f'\n        set content of _comp to {_to_applescript(body)}' if body else ''
+
+    # Sending and showing are mutually exclusive: once a composer window is
+    # shown, MailMaven no longer allows it to be sent via AppleScript. If
+    # `send` is set, it takes priority and `show_window` is ignored.
+    if send:
+        action_line = '\n        set _sent to send _comp'
+        result_expr = '_id & "|" & (_sent as string)'
+    else:
+        action_line = '\n        show composer _comp' if show_window else ''
+        result_expr = '_id'
+
     body_script = f'''
-    with transaction
+    with transaction{from_setup}
         {_message_lookup_snippet(identifier)}
         if (count of _msgs) is 0 then error "Message not found"
-        set _comp to forward item 1 of _msgs{attach_param}{from_param}{to_param}
+        set _comp to forward item 1 of _msgs{attach_param}{from_param}{to_param}{content_line}
+        set _id to identifier of _comp{action_line}
     end transaction
     '''
-    if body:
-        body_script += f'\n    set content of _comp to {_to_applescript(body)}'
-    body_script += '\n    set _id to identifier of _comp'
-    if show_window:
-        body_script += '\n    show composer _comp'
-    body_script += '\n    return _id'
+    body_script += f'\n    return {result_expr}'
 
     script = _tell(body_script)
-    composer_id = _run_applescript(script)
+    raw = _run_applescript(script)
+
+    if send:
+        composer_id, _, sent_flag = raw.partition("|")
+        sent = sent_flag.strip().lower() == "true"
+        status = "sent" if sent else "created but send reported failure"
+    else:
+        composer_id = raw
+        sent = False
+        status = "shown" if show_window else "created (use send_message)"
 
     return {
         "composerId": composer_id,
-        "message": (
-            f"Forwarded message id {identifier} to {to}. "
-            f"Composer {'shown' if show_window else 'created (use send_message)'}."
-        ),
+        "sent": sent,
+        "message": f"Forwarded message id {identifier} to {to}. Composer {status}.",
     }
 
 
