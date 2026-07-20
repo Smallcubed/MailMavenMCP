@@ -68,28 +68,28 @@ pwd  # from inside the MailMavenMCP folder
 
 ### Claude Desktop
 
-Open **Settings → Developer → Edit Config** in Claude Desktop (or open the file directly):
+If you are using Claude Desktop, open **Settings → Developer → Edit Config** in Claude Desktop (or open the file directly):
 
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
-Add a `mailmaven` entry under `mcpServers`, using the **full paths** to your virtual environment's Python and to `MavenMCP.py`:
+Add a `mailmaven` entry under `mcpServers`, using the **full paths** to your virtual environment's Python and to `MavenMCP.py`:  (if there is not a `mcpServers` key, you will need to add it)
 
 ```json
-{
+...
   "mcpServers": {
     "mailmaven": {
       "command": "/absolute/path/to/MailMavenMCP/.venv/bin/python3",
       "args": ["/absolute/path/to/MailMavenMCP/MavenMCP.py"]
     }
   }
-}
+...
 ```
 
-Save the file and fully restart Claude Desktop (quit from the menu bar, don't just close the window).
+Ensure the config file is well formed json and save the file and fully restart Claude Desktop (quit from the menu bar, don't just close the window).
 
 ### Claude Code
 
-From the terminal:
+If you are using Claude code, enter the following command in the Terminal:
 
 ```bash
 claude mcp add mailmaven -- /absolute/path/to/MailMavenMCP/.venv/bin/python3 /absolute/path/to/MailMavenMCP/MavenMCP.py
@@ -112,7 +112,11 @@ Make sure MailMaven is open, then ask Claude something simple like:
 
 > "List my MailMaven accounts."
 
-If it responds with your configured accounts, the connection is working. If a MailMaven tool appears in Claude's tool list but calls fail, check the troubleshooting section below.
+or 
+
+> "Summarize the first selected message of the front MailMaven viewer"
+
+If it responds with information from Maven, the connection is working. If a MailMaven tool appears in Claude's tool list but calls fail, check the troubleshooting section below.
 
 ---
 
