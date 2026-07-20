@@ -690,8 +690,17 @@ def get_message(identifier: int, include_content: bool = True) -> dict:
             raise RuntimeError(f"No message found with identifier: {identifier}") from exc
         raise
 
+    # Each field was appended in AppleScript as `key & "\t" & value & return`,
+    # where AppleScript's `return` is a carriage return ("\r"), not "\n" - so
+    # "\r" is the real field separator here. Splitting on "\n" instead (as
+    # this used to do) breaks on every line break *inside* a field's own
+    # value too - which shreds any multi-line value (e.g. a message body
+    # with several paragraphs) into extra bogus "lines". Any such fragment
+    # that happens to contain a literal tab character then gets misread as
+    # its own key/value pair, silently overwriting real fields (e.g.
+    # "content") with garbage and truncating them to just their first line.
     result: dict[str, Any] = {}
-    for line in raw.strip().split("\n"):
+    for line in raw.strip("\r").split("\r"):
         if "\t" in line:
             key, val = line.split("\t", 1)
             result[key] = val
