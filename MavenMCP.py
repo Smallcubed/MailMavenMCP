@@ -513,13 +513,13 @@ def search_messages(
             {"qualifier": QUALIFIER_GREATER, "attachment count": 0},
         )
     if period_start_days_back is not None and period_length_days is not None:
-        add_criterion("date sent offset criterion", {
+        add_criterion("relative message date criterion", {
             "unit": UNIT_DAY,
             "starting at": -period_start_days_back,
             "for duration": period_length_days,
         })
     elif days_back is not None and days_back > 0:
-        add_criterion("date sent offset criterion", {
+        add_criterion("relative message date criterion", {
             "unit": UNIT_DAY,
             "starting at": -days_back,
             "for duration": days_back,
@@ -531,7 +531,7 @@ def search_messages(
 
     if not crit_lines:
         crit_lines.append(
-            'make new date sent offset criterion with properties '
+            'make new relative message date criterion with properties '
             '{unit:day, starting at:30, for duration:1} '
             'at end of criteria of _q'
         )
