@@ -120,6 +120,25 @@ If it responds with information from Maven, the connection is working. If a Mail
 
 ---
 
+## MCP configuration
+
+By default, the MailMaven MCP does not allow sending from the Assistant.  Composed emails should be displayed before manually sending.  To allow AI Assistants to send without this manual confirmation, edit the Assistant's config file to set the "ENABLE_SENDING" environment variable to "true".
+
+```json
+...
+  "mcpServers": {
+    "mailmaven": {
+      "command": "/absolute/path/to/MailMavenMCP/.venv/bin/python3",
+      "args": ["/absolute/path/to/MailMavenMCP/MavenMCP.py"],
+      "env": {"ENABLE_SENDING": "true"}
+    }
+  }
+...
+```
+
+
+---
+
 ## Troubleshooting
 
 **"AppleScript error: ... not allowed to send Apple events"** (or errno `-1743`)
