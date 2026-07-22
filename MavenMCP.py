@@ -9,6 +9,7 @@ forward) as required by MailMaven's AppleScript dictionary.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -1100,6 +1101,12 @@ def compose_message(
         Dict with composerId, whether the message was sent, and a
         confirmation message.
     """
+    if send and os.environ.get("ENABLE_SENDING", "").lower() != "true":
+        raise ValueError(
+            "Sending is disabled — set the ENABLE_SENDING environment "
+            "variable to 'true' to allow compose_message to send mail."
+        )
+
     if send and not from_account:
         raise ValueError(
             "from_account is required when send=True — MailMaven cannot "
@@ -1207,6 +1214,12 @@ def forward_message(
         Dict with composerId, whether the message was sent, and a
         confirmation message.
     """
+    if send and os.environ.get("ENABLE_SENDING", "").lower() != "true":
+        raise ValueError(
+            "Sending is disabled — set the ENABLE_SENDING environment "
+            "variable to 'true' to allow forward_message to send mail."
+        )
+
     if send and not from_account:
         raise ValueError(
             "from_account is required when send=True — MailMaven cannot "
