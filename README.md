@@ -10,11 +10,11 @@ The server drives MailMaven through AppleScript, so it works with your existing 
 
 ## What it lets Claude do
 
-Once connected, Claude gains 28 tools for working with MailMaven:
+Once connected, Claude gains numerous tools for working with MailMaven:
 
 **Accounts & mailboxes**
 - `get_app_info`, `check_new_mail`
-- `list_accounts`, `list_mailboxes`, `get_unified_mailboxes`, `open_mailbox`
+- `list_accounts`, `list_mailboxes`, `get_unified_mailboxes`
 
 **Reading & searching mail**
 - `search_messages` — filter by subject, sender, recipient, body content, keyword, project, read/flag/importance status, attachments, date range, mailbox, or account
